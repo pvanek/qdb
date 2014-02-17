@@ -1,0 +1,423 @@
+#!/usr/bin/env qore
+
+%new-style
+%exec-class Main
+
+%requires linenoise
+%requires SqlUtil
+
+
+
+sub help() {
+     printf("Usage:\n");
+     printf("%s <connection>\n", get_script_name());
+     printf("   connection can be any Qore connection string.\n");
+     printf("   E.g.: pgsql:test/test@test%localhost\n");
+     printf("\n");
+     exit(1);
+}
+
+
+class Main
+{
+    private {
+        string connstr;
+        Datasource ds;
+        SqlUtil::Database db;
+        int limit = 100;
+
+        hash commands = ( "history" : "callHistory",
+                          "commit" : "callCommit",
+                          "rollback" : "callRollback",
+                          "tables" : "showTables",
+                          "views" : "showViews",
+                          "sequences" : "showSequences",
+                          "procedures" : "showProcedures",
+                          "functions" : "showFunctions",
+                          "packages" : "showPackages",
+                          "types" : "showTypes",
+                          "mviews" : "showMViews",
+                          "desc" : "describeObject",
+                          "describe" : "describeObject",
+                          "limit" : "setLimit",
+                        );
+    }
+
+    constructor()
+    {
+        if (!elements ARGV)
+            help();
+
+        connstr = string(ARGV[0]);
+        ds = new Datasource(connstr);
+        ds.setAutoCommit(False);
+
+        db = new SqlUtil::Database(ds, ("native_case" : True) );
+
+        Linenoise::history_set_max_len(100);
+
+        try
+            Linenoise::history_load(getConfigFile());
+        catch (ex)
+            printf("History load: %s - %s\n", ex.err, ex.desc);
+
+        Linenoise::set_callback(\self.lineCallback());
+
+        mainLoop();
+    }
+
+
+    private mainLoop()
+    {
+        on_exit Linenoise::history_save(getConfigFile());
+
+        while (True)
+        {
+            *string line = Linenoise::line(getPrompt());
+            if (!exists line) {
+                printf("^C signal caught. Exiting.\n");
+                break;
+            }
+            else if (line == "")
+            {
+                # the empty line is returned on terminal resize
+                continue;
+            }
+            
+            # TODO/FIXME: ; should be command separator. Allow multiline sql statements.
+            if (line[line.size()-1] == ";")
+                line = line.substr(0, line.size()-1);
+
+            if (!callCommand(line))
+            {
+                Linenoise::history_add(line);
+                callSQL(line);
+            }
+        }
+
+        if (ds.inTransaction())
+        {
+            printf("Connection is in transaction. Rollbacking...\n");
+            ds.rollback();
+        }
+    }
+
+
+    private list lineCallback(string str)
+    {
+        list ret = ();
+        HashIterator it(commands);
+        string rx = sprintf("^%s", str);
+        while (it.next())
+        {
+            if (it.getKey().regex(rx))
+               push ret, it.getKey();
+        }
+        return ret;
+    }
+
+
+    private bool callCommand(string line)
+    {
+        list strs = line.split(" ");
+        string cmd = shift strs;
+        if (has_key(commands, cmd))
+        {
+            callObjectMethodArgs(self, commands{cmd}, strs);
+            return True;
+        }
+      
+        return False;
+    }
+
+
+    private callSQL(string sql)
+    {
+        date start = now();
+        date end;
+        
+        int count = 0;
+
+        try
+        {
+            bool header = False;
+            SQLStatement stmt(ds);
+            stmt.prepareRaw(sql);
+            while (stmt.next())
+            {
+                any ret = stmt.fetchColumns(1);
+                switch (ret.typeCode())
+                {
+                    case NT_HASH:
+                        outputHash(ret, header);
+                        header = True;
+                        count += ret.firstValue().size();
+                        break;
+                    case NT_INT:
+                        count += ret;
+                        break;
+                    default:
+                        printf("unhandled/raw DB result (res.type()): %N\n", ret);
+                }
+                
+                if (limit > 0 && count >= limit)
+                {
+                    printf("User wor limit reached: %d\n", limit);
+                    break;
+                }
+            }
+        }
+        catch (ex)
+        {
+            printf("DB ERROR: %s: %s\n", ex.err, ex.desc);
+        }
+        end = now();
+        
+        printf("rows affected: %d\n", count);
+        printf("Duration: %n\n", end - start);
+        printf("\n");
+    }
+
+
+    private outputLine(softlist row, string type)
+    {
+        string mask = strmul("%20s ", row.size(), 1) + "\n";
+        if (type == "header")
+        {
+            printf("\n");
+            vprintf(mask, row);
+        }
+        else if (type == "separator")
+        {
+            row = map "--------------------", row;
+            vprintf(mask, row);
+        }
+        else
+        {
+            ListIterator it(row);
+            list r;
+            while (it.next())
+            {
+                switch (it.getValue().typeCode())
+                {
+                    case NT_DATE:
+                        push r, format_date("YYYY-MM-DD HH:mm:SS", it.getValue());
+                        break;
+                    default:
+                        push r, it.getValue();
+                }
+            }
+            vprintf(mask, r);
+        }
+    }
+
+    private outputHash(hash h, bool hasHeader)
+    {
+        if (!hasHeader)
+        {
+            list header = keys h;
+            outputLine(header, "header");
+            outputLine(header, "separator");
+        }
+
+        context (h)
+        {
+            outputLine(hash_values(%%), "datarow");
+        }
+        
+        printf("\n");
+    }
+
+
+    private callHistory()
+    {
+        list h = Linenoise::history();
+        ListIterator it(h);
+        int cnt = h.size();
+
+        any val = shift argv;
+        if (val != int(val))
+            val = NOTHING;
+        else
+            val = int(val);
+
+        while (it.next())
+        {
+            if (val && cnt-val > it.index())
+                continue;
+            printf("%4d: %s\n", it.index(), it.getValue());
+        }
+    }
+
+    private string getPrompt()
+    {
+        string ret = sprintf("SQL tran:%s,%s:%s@%s%s> ",
+                              ds.inTransaction() ? 'Y' : 'n',
+                              ds.getDriverName(),
+                              ds.getUserName(),
+                              ds.getDBName(),
+                              ds.getHostName()
+                             );
+        return ret;
+    }
+
+    private *string getConfigFile()
+    {
+        try
+        {
+            string pwd = getpwuid2(getuid()).pw_dir;
+            return sprintf("%s/.%s.cfg", pwd, get_script_name());
+        }
+        catch (ex)
+            printf("Config File ERROR: %s - %s\n", ex.err, ex.desc);
+        return NOTHING;
+    }
+
+    private callCommit()
+    {
+        try
+            ds.commit();
+        catch (ex)
+            printf("Commit ERROR: %s - %s\n", ex.err, ex.desc);
+    }
+
+    private callRollback()
+    {
+        try
+            ds.rollback();
+        catch (ex)
+            printf("Commit ERROR: %s - %s\n", ex.err, ex.desc);
+    }
+
+    private showObjects(string objType, *string filter) {
+        string method = sprintf("%sIterator", objType);
+        my ListIterator it = callObjectMethod(db, method);
+
+        outputLine(objType, "header");
+        outputLine(objType, "separator");
+
+        while (it.next())
+        {
+            if (!exists filter)
+                outputLine(it.getValue(), "datarow");
+            else if (it.getValue().upr().regex(filter.upr()))
+                outputLine(it.getValue(), "datarow");
+        }
+        
+        printf("\n");
+    }
+
+    private showTables()
+    {
+        showObjects("table", shift argv);
+    }
+
+    private showViews()
+    {
+        showObjects("view", shift argv);
+    }
+
+    private showSequences()
+    {
+        showObjects("sequence", shift argv);
+    }
+
+    private showFunctions()
+    {
+        showObjects("function", shift argv);
+    }
+
+    private showProcedures()
+    {
+        showObjects("procedure", shift argv);
+    }
+
+    private showPackages()
+    {
+        showObjects("package", shift argv);
+    }
+
+    private showTypes()
+    {
+        showObjects("type", shift argv);
+    }
+
+    private showMViews()
+    {
+        showObjects("materializedView", shift argv);
+    }
+    
+    private setLimit()
+    {
+        any val = shift argv;
+        if (!exists val)
+        {
+            printf("Current limit: %s\n", limit ? limit : 'unlimited');
+            return;
+        }
+        if (val != int(val))
+        {
+            printf("Cannot set limit to value: %n. Use numeric value.\n", val);
+            return;
+        }
+        
+        limit = val;
+    }
+    
+    
+    private describeTable(string name)
+    {
+        printf("describe table - unimplemented yet\n");
+    }
+    
+    private bool describeObject(string name, string type)
+    {
+        ListIterator it(callObjectMethod(db, sprintf("list%ss", type)));
+        while (it.next())
+        {
+            if (it.getValue().upr() == name)
+            {
+                if (type == "Table")
+                    describeTable(name);
+                else
+                {
+                    ObjectIterator obj(callObjectMethod(db, sprintf("get%s", type), name));
+                    hash vals;
+                    vals.property = ();
+                    vals.value = ();
+                    while (obj.next())
+                    {
+                        push vals.property, obj.getKey();
+                        push vals.value, obj.getValue();
+                    }
+                    
+                    outputHash(vals, False);
+                }
+                    
+                return True;
+            }
+        }
+        return False;
+    }
+
+    private describeObject()
+    {
+        *softstring name = shift argv;
+        if (!exists name)
+        {
+            printf("No object name provided\n");
+            return;
+        }
+
+        name = name.upr();
+        # find object type
+        list m = ("Table", "View", "Sequence", "Type", "Package", "Procedure", "Function", "MaterializedView");
+        foreach string i in (m)
+        {
+            if (describeObject(name, i))
+                return;
+        }
+    }
+
+} # class Main
+
