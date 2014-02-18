@@ -41,6 +41,11 @@ class Main
                           "describe" : "describeObject",
                           "limit" : "setLimit",
                         );
+
+        hash expansions = (
+                          "sf" : "select * from ",
+                          "scf" : "select count(*) from ",
+                        );
     }
 
     constructor()
@@ -62,6 +67,9 @@ class Main
             printf("History load: %s - %s\n", ex.err, ex.desc);
 
         Linenoise::set_callback(\self.lineCallback());
+
+        #printf("Connected to: %n\n", ds.getClientVersion());
+        setLimit();
 
         mainLoop();
     }
@@ -113,6 +121,13 @@ class Main
             if (it.getKey().regex(rx))
                push ret, it.getKey();
         }
+
+        HashIterator eit(expansions);
+        while (eit.next())
+        {
+            if (eit.getKey() == str)
+               push ret, eit.getValue();
+        }
         return ret;
     }
 
@@ -142,6 +157,7 @@ class Main
         {
             bool header = False;
             SQLStatement stmt(ds);
+            on_exit stmt.close();
             stmt.prepareRaw(sql);
             while (stmt.next())
             {
@@ -169,10 +185,12 @@ class Main
         }
         catch (ex)
         {
+            printf("\n");
             printf("DB ERROR: %s: %s\n", ex.err, ex.desc);
         }
         end = now();
         
+        printf("\n");
         printf("rows affected: %d\n", count);
         printf("Duration: %n\n", end - start);
         printf("\n");
@@ -181,7 +199,17 @@ class Main
 
     private outputLine(softlist row, string type)
     {
-        string mask = strmul("%20s ", row.size(), 1) + "\n";
+        string mask;
+        ListIterator it(row);
+        while (it.next())
+        {
+            if (inlist(it.getValue().typeCode(), (NT_STRING, NT_DATE)))
+                mask += "%-20s ";
+            else
+                mask += "%20s ";
+        } 
+        mask = mask.substr(0, mask.size()-1) + "\n";
+
         if (type == "header")
         {
             printf("\n");
@@ -224,8 +252,6 @@ class Main
         {
             outputLine(hash_values(%%), "datarow");
         }
-        
-        printf("\n");
     }
 
 
@@ -251,7 +277,7 @@ class Main
 
     private string getPrompt()
     {
-        string ret = sprintf("SQL tran:%s,%s:%s@%s%s> ",
+        string ret = sprintf("SQL tran:%s %s:%s@%s%%%s> ",
                               ds.inTransaction() ? 'Y' : 'n',
                               ds.getDriverName(),
                               ds.getUserName(),
@@ -367,7 +393,87 @@ class Main
     
     private describeTable(string name)
     {
-        printf("describe table - unimplemented yet\n");
+        SqlUtil::AbstractTable tab = db.getTable(name);
+        printf("Name: %s\n", tab.getName());
+        printf("SQL Name: %s\n", tab.getSqlName());
+
+        HashIterator itColumns = tab.describe().iterator();
+        hash columns;
+        list columnNames = ("name", "native_type", "size", "nullable", "def_val", "comment");
+        foreach string i in (columnNames)
+            columns{i} = list();
+
+        while (itColumns.next()) {
+            foreach string i in (columnNames)
+                 push columns{i}, itColumns.getValue(){i};
+        }
+        printf("\nColumns:\n");
+        outputHash(columns, False);
+
+        # PK
+        if (tab.getPrimaryKey().empty())
+        {
+            printf("Primary Key: none\n");
+        }
+        else
+        {
+            HashIterator it = tab.getPrimaryKey().iterator();
+            hash pk;
+            foreach string i in (columnNames)
+                pk{i} = list();
+            while (it.next()) {
+                foreach string i in (columnNames)
+                    push pk{i}, it.getValue(){i};
+            }
+            printf("\nPrimary Key:\n");
+            outputHash(pk, False);
+        }
+
+%ifdef foo
+
+        my list $ixs;
+        if (!$tab.getIndexes().empty()) {
+            my HashIterator $it = $tab.getIndexes().iterator();
+            while ($it.next()) {
+                my hash $ix;
+                $ix.name = $it.getValue().name;
+                $ix.unique = exists $it.getValue().unique ? $it.getValue().unique : False;
+                $ix.native = $it.getValue().native_type;
+                $ix.columns = ();
+
+                my HashIterator $cit = $it.getValue().columns.iterator();
+                while ($cit.next()) {
+                    # TODO/FIXME: implement proper support for function based indexes in SqlUtil
+                    # cit.getValue() is SqlUtil::AbstractColumn in normal index but is plain hash (<EMPTY HASH>) for function ix
+                    if ($cit.getValue().typeCode() == NT_HASH)
+                        push $ix.columns, 'n/a';
+                    else
+                        push $ix.columns, $.column2hash($cit.getValue());
+                }
+                push $ixs, $ix;
+            }
+        }
+
+        my list $trgs;
+        if (!$tab.getTriggers().empty()) {
+            my HashIterator $it = $tab.getTriggers().iterator();
+            while ($it.next()) {
+                my hash $trg;
+                $trg.name = $it.getValue().name;
+                $trg.src = $it.getValue().src;
+                push $trgs, $trg;
+            }
+        }
+
+        my hash $ret = (
+                "name"      : $tab.getName(),
+                "sqlname"   : $tab.getSqlName(),
+                "columns"   : $columns,
+                "pk"        : $pks,
+                "indexes"   : $ixs,
+                "triggers"  : $trgs,
+            );
+%endif
     }
     
     private bool describeObject(string name, string type)
