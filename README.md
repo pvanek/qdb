@@ -29,6 +29,22 @@ By default is the output of select statement limited to display only 100 rows. U
 Press <TAB> for command/expansion automatic completion.
 There are more keyboard shortcuts avalable - see Qore Linenoise documentation.
 
+### Transaction Handling
+
+qdb disables potential autocommit for all DBMS. Commit has to be performed manually. Transaction in progress is rollbacked by default on application exit.
+
+Status of transaction is displayed in SQL prompt - value after "tran:" string.
+
+Out of transaction:
+```
+SQL tran:n oracle:hr@orcl%10.211.55.7
+```
+
+In transaction:
+```
+SQL tran:Y oracle:hr@orcl%10.211.55.7
+```
+
 ### Available commands
 
 Note: Some commands make sense on special DBMS only.
@@ -57,4 +73,66 @@ Various string shortcuts can be expanded by <TAB> to longer strings to speed up 
 
 * sf : select * from 
 * scf : select count(*) from 
+
+
+## Sample Usage
+
+```
+lister:qdb pvanek$ ./qdb oracle:hr/hr@orcl%10.211.55.7:1521
+Current limit: 100
+Current verbosity: 0
+SQL tran:n oracle:hr@orcl%10.211.55.7> tables 
+
+table               
+--------------------
+REGIONS             
+LOCATIONS           
+DEPARTMENTS         
+JOBS                
+EMPLOYEES           
+JOB_HISTORY         
+COUNTRIES           
+
+SQL tran:n oracle:hr@orcl%10.211.55.7> desc countries
+Name: COUNTRIES
+SQL Name: hr.COUNTRIES
+
+Columns:
+
+name                 native_type          size                 nullable             def_val              comment             
+-------------------- -------------------- -------------------- -------------------- -------------------- --------------------
+country_id           char                                    2                    0                      Primary key of countries table.
+country_name         varchar2                               40                    1                      Country name        
+region_id            number                                  0                    1                      Region ID for the country. Foreign key to region_id column in the departments table.
+
+Primary Key:
+
+name                 native_type          size                 nullable             def_val              comment             
+-------------------- -------------------- -------------------- -------------------- -------------------- --------------------
+country_id           char                                    2                    0                      Primary key of countries table.
+
+Describe limited by verbosity. Use: "verbose 1" to show indexes and more
+SQL tran:n oracle:hr@orcl%10.211.55.7> select * from countries;
+
+country_id           country_name         region_id           
+-------------------- -------------------- --------------------
+AU                   Australia                               3
+BR                   Brazil                                  2
+CH                   Switzerland                             1
+DE                   Germany                                 1
+EG                   Egypt                                   4
+HK                   HongKong                                3
+IN                   India                                   3
+JP                   Japan                                   3
+MX                   Mexico                                  2
+NL                   Netherlands                             1
+UK                   United Kingdom                          1
+ZM                   Zambia                                  4
+
+rows affected: 12
+Duration: <time: 0 seconds>
+
+SQL tran:Y oracle:hr@orcl%10.211.55.7> quit
+```
+
 
