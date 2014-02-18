@@ -429,51 +429,62 @@ class Main
             outputHash(pk, False);
         }
 
-%ifdef foo
+        # Indexes
+        if (tab.getIndexes().empty())
+        {
+            printf("Indexes: none\n");
+        }
+        else
+        {
+            my HashIterator it = tab.getIndexes().iterator();
+            while (it.next())
+            {
+                hash ix;
+                ix.name = list(it.getValue().name);
+                ix.unique = list(exists it.getValue().unique ? "unique" : "non-unique");
+                ix.native = list(it.getValue().native_type);
+                printf("\nIndex: %s\n", ix.name[0]);
+                outputHash(ix, False);
 
-        my list $ixs;
-        if (!$tab.getIndexes().empty()) {
-            my HashIterator $it = $tab.getIndexes().iterator();
-            while ($it.next()) {
-                my hash $ix;
-                $ix.name = $it.getValue().name;
-                $ix.unique = exists $it.getValue().unique ? $it.getValue().unique : False;
-                $ix.native = $it.getValue().native_type;
-                $ix.columns = ();
-
-                my HashIterator $cit = $it.getValue().columns.iterator();
-                while ($cit.next()) {
+                HashIterator cit = it.getValue().columns.iterator();
+                hash icolumns;
+                foreach string i in (columnNames)
+                    icolumns{i} = list();
+                while (cit.next())
+                {
                     # TODO/FIXME: implement proper support for function based indexes in SqlUtil
                     # cit.getValue() is SqlUtil::AbstractColumn in normal index but is plain hash (<EMPTY HASH>) for function ix
-                    if ($cit.getValue().typeCode() == NT_HASH)
-                        push $ix.columns, 'n/a';
+                    if (cit.getValue().typeCode() == NT_HASH)
+                        push icolumns.native_type, 'n/a';
                     else
-                        push $ix.columns, $.column2hash($cit.getValue());
+                    {
+                        foreach string i in (columnNames)
+                            push icolumns{i}, cit.getValue(){i};
+                    }
+                    printf("\nIndex Columns:\n");
+                    outputHash(icolumns, False);
                 }
-                push $ixs, $ix;
             }
         }
 
-        my list $trgs;
-        if (!$tab.getTriggers().empty()) {
-            my HashIterator $it = $tab.getTriggers().iterator();
-            while ($it.next()) {
-                my hash $trg;
-                $trg.name = $it.getValue().name;
-                $trg.src = $it.getValue().src;
-                push $trgs, $trg;
-            }
+        # Triggers
+        if (tab.getTriggers().empty())
+        {
+            printf("\nTriggers: none\n");
         }
-
-        my hash $ret = (
-                "name"      : $tab.getName(),
-                "sqlname"   : $tab.getSqlName(),
-                "columns"   : $columns,
-                "pk"        : $pks,
-                "indexes"   : $ixs,
-                "triggers"  : $trgs,
-            );
-%endif
+        else
+        {
+            HashIterator it = tab.getTriggers().iterator();
+            hash trg;
+            trg.name = list();
+            while (it.next())
+            {
+                push trg.name, it.getValue().name;
+                #$trg.src = $it.getValue().src;
+            }
+            printf("\nTriggers:\n");
+            outputHash(trg, False);
+        }
     }
     
     private bool describeObject(string name, string type)
