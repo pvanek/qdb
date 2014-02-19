@@ -167,13 +167,14 @@ class Main
             stmt.prepareRaw(sql);
             while (stmt.next())
             {
-                any ret = stmt.fetchColumns(1);
+                any ret = stmt.fetchRow();
+
                 switch (ret.typeCode())
                 {
                     case NT_HASH:
                         outputHash(ret, header);
                         header = True;
-                        count += ret.firstValue().size();
+                        count++;
                         break;
                     case NT_INT:
                         count += ret;
@@ -181,10 +182,10 @@ class Main
                     default:
                         printf("unhandled/raw DB result (res.type()): %N\n", ret);
                 }
-                
+
                 if (limit > 0 && count >= limit)
                 {
-                    printf("User wor limit reached: %d\n", limit);
+                    printf("User row limit reached: %d\n", limit);
                     break;
                 }
             }
@@ -203,61 +204,49 @@ class Main
     }
 
 
-    private outputLine(softlist row, string type)
+    private outputLine(hash row, string type)
     {
         string mask;
-        ListIterator it(row);
+        list values;
+        list key;
+        HashIterator it(row);
         while (it.next())
         {
-            if (inlist(it.getValue().typeCode(), (NT_STRING, NT_DATE)))
-                mask += "%-20s ";
-            else
-                mask += "%20s ";
+            push key, it.getKey();
+            switch (it.getValue().typeCode())
+            {
+                case NT_STRING:
+                    push values, it.getValue();
+                    mask += "%-20s ";
+                    break;
+                case NT_DATE:
+                    push values, format_date("YYYY-MM-DD HH:mm:SS", it.getValue());
+                    mask += "%-20s ";
+                    break;
+                default:
+                    push values, it.getValue();
+                    mask += "%20s ";
+            }
         } 
         mask = mask.substr(0, mask.size()-1) + "\n";
 
         if (type == "header")
         {
             printf("\n");
+            vprintf(mask, key);
+            list row = map "--------------------", key;
             vprintf(mask, row);
         }
-        else if (type == "separator")
-        {
-            row = map "--------------------", row;
-            vprintf(mask, row);
-        }
-        else
-        {
-            ListIterator it(row);
-            list r;
-            while (it.next())
-            {
-                switch (it.getValue().typeCode())
-                {
-                    case NT_DATE:
-                        push r, format_date("YYYY-MM-DD HH:mm:SS", it.getValue());
-                        break;
-                    default:
-                        push r, it.getValue();
-                }
-            }
-            vprintf(mask, r);
-        }
+
+        vprintf(mask, values);
     }
 
     private outputHash(hash h, bool hasHeader)
     {
         if (!hasHeader)
-        {
-            list header = keys h;
-            outputLine(header, "header");
-            outputLine(header, "separator");
-        }
-
-        context (h)
-        {
-            outputLine(hash_values(%%), "datarow");
-        }
+            outputLine(h, "header");
+        else
+            outputLine(h, "datarow");
     }
 
 
@@ -325,15 +314,15 @@ class Main
         string method = sprintf("%sIterator", objType);
         my ListIterator it = callObjectMethod(db, method);
 
-        outputLine(objType, "header");
-        outputLine(objType, "separator");
+        printf("\n%ss\n", objType);
+        printf("-----------------------------\n");
 
         while (it.next())
         {
             if (!exists filter)
-                outputLine(it.getValue(), "datarow");
+                printf("%s\n", it.getValue());
             else if (it.getValue().upr().regex(filter.upr()))
-                outputLine(it.getValue(), "datarow");
+                printf("%s\n", it.getValue());
         }
         
         printf("\n");
@@ -420,43 +409,52 @@ class Main
         exit(0);
     }
     
-    
+
+    private hash describeColumn(SqlUtil::AbstractColumn c)
+    {
+        return (
+             "name" : c.name,
+             "type" : c.native_type,
+             "size" : c.size,
+             "null" : c.nullable ? 'Y' : 'N',
+             "default" : c.def_val,
+             "comment" : c.comment,
+             );
+    }
+
     private describeTable(string name)
     {
         SqlUtil::AbstractTable tab = db.getTable(name);
         printf("Name: %s\n", tab.getName());
         printf("SQL Name: %s\n", tab.getSqlName());
 
-        HashIterator itColumns = tab.describe().iterator();
-        hash columns;
-        list columnNames = ("name", "native_type", "size", "nullable", "def_val", "comment");
-        foreach string i in (columnNames)
-            columns{i} = list();
-
-        while (itColumns.next()) {
-            foreach string i in (columnNames)
-                 push columns{i}, itColumns.getValue(){i};
+        {
+            # Columns
+            printf("\nColumns:\n");
+            HashIterator it = tab.describe().iterator();
+            bool hasHeader = False;
+            while (it.next())
+            {
+                 outputHash(describeColumn(it.getValue()), hasHeader);
+                 if (!hasHeader) hasHeader = True;
+            }
         }
-        printf("\nColumns:\n");
-        outputHash(columns, False);
 
         # PK
         if (tab.getPrimaryKey().empty())
         {
-            printf("Primary Key: none\n");
+            printf("\nPrimary Key: none\n");
         }
         else
         {
-            HashIterator it = tab.getPrimaryKey().iterator();
-            hash pk;
-            foreach string i in (columnNames)
-                pk{i} = list();
-            while (it.next()) {
-                foreach string i in (columnNames)
-                    push pk{i}, it.getValue(){i};
-            }
             printf("\nPrimary Key:\n");
-            outputHash(pk, False);
+            HashIterator it = tab.getPrimaryKey().iterator();
+            bool hasHeader = False;
+            while (it.next())
+            {
+                outputHash(describeColumn(it.getValue()), hasHeader);
+                if (!hasHeader) hasHeader = True;
+            }
         }
 
         if (!verbose)
@@ -468,37 +466,22 @@ class Main
         # Indexes
         if (tab.getIndexes().empty())
         {
-            printf("Indexes: none\n");
+            printf("\nIndexes: none\n");
         }
         else
         {
             my HashIterator it = tab.getIndexes().iterator();
             while (it.next())
             {
-                hash ix;
-                ix.name = list(it.getValue().name);
-                ix.unique = list(exists it.getValue().unique ? "unique" : "non-unique");
-                ix.native = list(it.getValue().native_type);
-                printf("\nIndex: %s\n", ix.name[0]);
-                outputHash(ix, False);
+                printf("\nIndex: %s (%s)\n", it.getValue().name, (it.getValue().unique ? 'unique' : 'non-unique'));
 
+                printf("Index Columns:\n");
                 HashIterator cit = it.getValue().columns.iterator();
-                hash icolumns;
-                foreach string i in (columnNames)
-                    icolumns{i} = list();
+                bool hasHeader = False;
                 while (cit.next())
                 {
-                    # TODO/FIXME: implement proper support for function based indexes in SqlUtil
-                    # cit.getValue() is SqlUtil::AbstractColumn in normal index but is plain hash (<EMPTY HASH>) for function ix
-                    if (cit.getValue().typeCode() == NT_HASH)
-                        push icolumns.native_type, 'n/a';
-                    else
-                    {
-                        foreach string i in (columnNames)
-                            push icolumns{i}, cit.getValue(){i};
-                    }
-                    printf("\nIndex Columns:\n");
-                    outputHash(icolumns, False);
+                    outputHash(describeColumn(cit.getValue()), hasHeader);
+                    if (!hasHeader) hasHeader = True;
                 }
             }
         }
@@ -511,15 +494,14 @@ class Main
         else
         {
             HashIterator it = tab.getTriggers().iterator();
-            hash trg;
-            trg.name = list();
             while (it.next())
             {
-                push trg.name, it.getValue().name;
-                #$trg.src = $it.getValue().src;
+                printf("Trigger: %s\n", it.getValue().name);
+                if (verbose > 1)
+                    printf("Source Code:\n%s\n", it.getValue().src);
+                else
+                    printf("\nDescribe limited by verbosity. Use: \"verbose 2\" to show source codes\n");
             }
-            printf("\nTriggers:\n");
-            outputHash(trg, False);
         }
     }
     
@@ -535,16 +517,23 @@ class Main
                 else
                 {
                     ObjectIterator obj(callObjectMethod(db, sprintf("get%s", type), name));
-                    hash vals;
-                    vals.property = ();
-                    vals.value = ();
+                    bool hasHeader = False;
+                    string src;
                     while (obj.next())
                     {
-                        push vals.property, obj.getKey();
-                        push vals.value, obj.getValue();
+                        if (obj.getKey() == "src")
+                        {
+                            src = obj.getValue();
+                            continue;
+                        }
+                        outputHash(obj.getValuePair(), hasHeader);
+                        if (!hasHeader) hasHeader = True;
                     }
+                    if (verbose > 1)
+                        printf("Source Code:\n%s\n", src);
+                    else
+                        printf("\nDescribe limited by verbosity. Use: \"verbose 2\" to show source codes\n");
                     
-                    outputHash(vals, False);
                 }
                     
                 return True;
