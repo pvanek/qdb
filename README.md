@@ -55,8 +55,8 @@ Note: Some commands make sense on special DBMS only.
 * rollback : Rollback current transaction. See Transaction Handling.
 * limit [integer] : display current row limit or set the limit to integer value.  Values <= 0 mean unlimited.
 * verbose [integer] : set the verbosity level for describe commands
-* describe <objectname> : show object properties. Eg. table's columns, PK, indexes, etc. You can increase verbose level to get more info.
-* desc <objectname> : an alias for describe
+* describe objectname : show object properties. Eg. table's columns, PK, indexes, etc. You can increase verbose level to get more info.
+* desc objectname : an alias for describe
 * tables [filter] : list all tables. Optional filter is case insensitive substring or regular expression.
 * views [filter] : list all views. Optional filter is case insensitive substring or regular expression.
 * sequences [filter] : list all sequences. Optional filter is case insensitive substring or regular expression.
