@@ -56,15 +56,15 @@ Note: Some commands make sense on special DBMS only.
 * limit [integer] : display current row limit or set the limit to integer value.  Values <= 0 mean unlimited.
 * verbose [integer] : set the verbosity level for describe commands
 * describe <objectname> : show object properties. Eg. table's columns, PK, indexes, etc. You can increase verbose level to get more info.
-* desc <objectname> : an alias fro describe
-* tables : list all tables
-* views : list all views
-* sequences : list all sequences
-* procedures : list all procedures
-* functions : list all functions
-* packages : list all packages
-* types : list all named types
-* mviews : list all materialized views
+* desc <objectname> : an alias for describe
+* tables [filter] : list all tables. Optional filter is case insensitive substring or regular expression.
+* views [filter] : list all views. Optional filter is case insensitive substring or regular expression.
+* sequences [filter] : list all sequences. Optional filter is case insensitive substring or regular expression.
+* procedures [filter] : list all procedures. Optional filter is case insensitive substring or regular expression.
+* functions [filter] : list all functions. Optional filter is case insensitive substring or regular expression.
+* packages [filter] : list all packages. Optional filter is case insensitive substring or regular expression.
+* types [filter] : list all named types. Optional filter is case insensitive substring or regular expression.
+* mviews [filter] : list all materialized views. Optional filter is case insensitive substring or regular expression.
 
 
 ### Expansion Helpers
