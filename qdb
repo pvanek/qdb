@@ -26,6 +26,7 @@ class Main
         SqlUtil::Database db;
         int limit = 100;
         int verbose = 0;
+        *hash describe;
 
         hash commands = ( "history" : "callHistory",
                           "h" : "callHistory",
@@ -162,12 +163,16 @@ class Main
         try
         {
             bool header = False;
+            describe = NOTHING;
             SQLStatement stmt(ds);
             on_exit stmt.close();
             stmt.prepareRaw(sql);
             while (stmt.next())
             {
                 any ret = stmt.fetchRow();
+
+                if (!exists describe)
+                    describe = stmt.describe();
 
                 switch (ret.typeCode())
                 {
@@ -208,34 +213,50 @@ class Main
     {
         string mask;
         list values;
+        string title;
         list key;
+        string separator;
+
         HashIterator it(row);
         while (it.next())
         {
+            hash desc;
+            if (exists describe{it.getKey()})
+                desc = describe{it.getKey()};
+            else
+		desc.maxsize = 20;
+
+            int max = desc.maxsize < it.getKey().size() ? it.getKey().size() : desc.maxsize;
+            if (desc.type == NT_DATE && max < 19)
+                max = 19;
             push key, it.getKey();
-            switch (it.getValue().typeCode())
+            title += sprintf("%%-%ds ", max);
+            
+            switch (desc.type)
             {
                 case NT_STRING:
                     push values, it.getValue();
-                    mask += "%-20s ";
+                    mask += sprintf("%%-%ds ", max);
+                    separator += strmul("-", max) + " ";
                     break;
                 case NT_DATE:
                     push values, format_date("YYYY-MM-DD HH:mm:SS", it.getValue());
-                    mask += "%-20s ";
+                    mask += "%-s ";
+                    separator += strmul("-", 19) + " ";
                     break;
                 default:
                     push values, it.getValue();
-                    mask += "%20s ";
+                    mask += sprintf("%%%ds ", max);
+                    separator += strmul("-", max) + " ";
             }
         } 
         mask = mask.substr(0, mask.size()-1) + "\n";
 
         if (type == "header")
         {
-            printf("\n");
-            vprintf(mask, key);
-            list row = map "--------------------", key;
-            vprintf(mask, row);
+            title = title.substr(0, title.size()-1) + "\n";
+            vprintf(title, key);
+            printf(separator + "\n");
         }
 
         vprintf(mask, values);
@@ -428,6 +449,15 @@ class Main
         printf("Name: %s\n", tab.getName());
         printf("SQL Name: %s\n", tab.getSqlName());
 
+        describe = (
+                "name" : ( "type" : NT_STRING, "maxsize" : 35 ),
+                "type" : ( "type" : NT_STRING, "maxsize" : 20 ),
+                "size" : ( "type" : NT_INT, "maxsize" : 6 ),
+                "null" : ( "type" : NT_STRING, "maxsize" : 1 ),
+                "default" : ( "type" : NT_STRING, "maxsize" : 22 ),
+                "comment" : ( "type" : NT_STRING, "maxsize" : 30 ),
+            );
+
         {
             # Columns
             printf("\nColumns:\n");
@@ -556,8 +586,13 @@ class Main
         list m = ("Table", "View", "Sequence", "Type", "Package", "Procedure", "Function", "MaterializedView");
         foreach string i in (m)
         {
-            if (describeObject(name, i))
-                return;
+            try {
+	        if (describeObject(name, i))
+                    return;
+            }
+            catch (ex) {
+                printf("%s: %s\n", ex.err, ex.desc);
+            }
         }
     }
 
