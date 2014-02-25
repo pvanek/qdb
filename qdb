@@ -5,7 +5,10 @@
 
 %requires linenoise
 %requires SqlUtil
+# TODO/FIXME: check module presence
 %requires xml
+%requires yaml
+%requires json
 
 
 
@@ -122,6 +125,25 @@ class XMLOutput inherits AbstractOutput
 
 } # class XMLOutput
 
+class YamlOutput inherits AbstractOutput
+{
+    constructor() : AbstractOutput("yaml") {}
+
+    putLine(hash row, string type, hash describe)
+    {
+        if (type == "header")
+        {
+            printf("---\n");
+        }
+        printf("  - %s", YAML::makeYAML(row));
+    }
+
+    putEndLine()
+    {
+        printf("...\n");
+    }
+} # class YamlOutput
+
 
 class Main
 {
@@ -136,6 +158,7 @@ class Main
 
         hash outputs = ( "console" : new StdoutOutput(),
                          "xml" : new XMLOutput(),
+                         "yaml" : new YamlOutput(),
                        );
 
         hash commands = ( "history" : "callHistory",
