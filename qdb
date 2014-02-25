@@ -9,12 +9,12 @@
 
 
 sub help() {
-     printf("Usage:\n");
-     printf("%s <connection>\n", get_script_name());
-     printf("   connection can be any Qore connection string.\n");
-     printf("   E.g.: pgsql:test/test@test%localhost\n");
-     printf("\n");
-     exit(1);
+    printf("Usage:\n");
+    printf("%s <connection>\n", get_script_name());
+    printf("   connection can be any Qore connection string.\n");
+    printf("   E.g.: pgsql:test/test@test%localhost\n");
+    printf("\n");
+    exit(1);
 }
 
 
