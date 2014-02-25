@@ -51,10 +51,11 @@ Note: Some commands make sense on special DBMS only.
 
 * quit : rollback and exit the application
 * history [integer] : it shows history of commands. The latest items are displayed only if is the integer value provided.
-* commit : Commit current transaction. See Transaction Handling.
-* rollback : Rollback current transaction. See Transaction Handling.
+* commit : Commit current transaction. See "Transaction Handling".
+* rollback : Rollback current transaction. See "Transaction Handling".
 * limit [integer] : display current row limit or set the limit to integer value.  Values <= 0 mean unlimited.
 * verbose [integer] : set the verbosity level for describe commands
+* output [string] : set the data result display. See "Supported Output Formats"
 * describe objectname : show object properties. Eg. table's columns, PK, indexes, etc. You can increase verbose level to get more info.
 * desc objectname : an alias for describe
 * tables [filter] : list all tables. Optional filter is case insensitive substring or regular expression.
@@ -65,6 +66,18 @@ Note: Some commands make sense on special DBMS only.
 * packages [filter] : list all packages. Optional filter is case insensitive substring or regular expression.
 * types [filter] : list all named types. Optional filter is case insensitive substring or regular expression.
 * mviews [filter] : list all materialized views. Optional filter is case insensitive substring or regular expression.
+
+
+### Supported Output Formats
+
+There are bunch of output formats available. Current format can be obtained by ```output``` command.
+Using ```output xml``` you can switch standard output to XML.
+Currently available formats:
+
+* console - a classic command line "tabular" output
+* xml - XML output. The root tag is ```resultset``` and each row is using tag ```row```
+* json - TODO
+* yaml - TODO
 
 
 ### Expansion Helpers
@@ -99,17 +112,17 @@ SQL Name: hr.COUNTRIES
 
 Columns:
 
-name                 native_type          size                 nullable             def_val              comment             
--------------------- -------------------- -------------------- -------------------- -------------------- --------------------
-country_id           char                                    2                    0                      Primary key of countries table.
-country_name         varchar2                               40                    1                      Country name        
-region_id            number                                  0                    1                      Region ID for the country. Foreign key to region_id column in the departments table.
+name                 native_type          size nullable def_val comment             
+-------------------- -------------------- ---- -------- ------- --------------------
+country_id           char                    2        0         Primary key of countries table.
+country_name         varchar2               40        1         Country name        
+region_id            number                  0        1         Region ID for the country. Foreign key to region_id column in the departments table.
 
 Primary Key:
 
-name                 native_type          size                 nullable             def_val              comment             
--------------------- -------------------- -------------------- -------------------- -------------------- --------------------
-country_id           char                                    2                    0                      Primary key of countries table.
+name                 native_type          size nullable def_val comment             
+-------------------- -------------------- ---- -------- ------- --------------------
+country_id           char                    2        0         Primary key of countries table.
 
 Describe limited by verbosity. Use: "verbose 1" to show indexes and more
 SQL tran:n oracle:hr@orcl%10.211.55.7> select * from countries;

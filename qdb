@@ -5,6 +5,7 @@
 
 %requires linenoise
 %requires SqlUtil
+%requires xml
 
 
 
@@ -18,6 +19,110 @@ sub help() {
 }
 
 
+class AbstractOutput
+{
+    private {
+        string m_type;
+    }
+
+    constructor(string type)
+    {
+        m_type = type;
+    }
+
+    string type() { return m_type; }
+
+    abstract putLine(hash row, string type, hash describe);
+    abstract putEndLine();
+
+} # class AbstractOutput
+
+
+class StdoutOutput inherits AbstractOutput
+{
+    constructor() : AbstractOutput("stdout")
+    {
+    }
+
+    putLine(hash row, string type, hash describe)
+    {
+        string mask;
+        list values;
+        string title;
+        list key;
+        string separator;
+
+        HashIterator it(row);
+        while (it.next())
+        {
+            hash desc;
+            if (exists describe{it.getKey()})
+                desc = describe{it.getKey()};
+            else
+                desc.maxsize = 20;
+
+            int max = desc.maxsize < it.getKey().size() ? it.getKey().size() : desc.maxsize;
+            if (desc.type == NT_DATE && max < 19)
+                max = 19;
+            push key, it.getKey();
+            title += sprintf("%%-%ds ", max);
+            
+            switch (desc.type)
+            {
+                case NT_STRING:
+                    push values, it.getValue();
+                    mask += sprintf("%%-%ds ", max);
+                    separator += strmul("-", max) + " ";
+                    break;
+                case NT_DATE:
+                    push values, format_date("YYYY-MM-DD HH:mm:SS", it.getValue());
+                    mask += "%-s ";
+                    separator += strmul("-", 19) + " ";
+                    break;
+                default:
+                    push values, it.getValue();
+                    mask += sprintf("%%%ds ", max);
+                    separator += strmul("-", max) + " ";
+            }
+        } 
+        mask = mask.substr(0, mask.size()-1) + "\n";
+
+        if (type == "header")
+        {
+            title = title.substr(0, title.size()-1) + "\n";
+            vprintf(title, key);
+            printf(separator + "\n");
+        }
+
+        vprintf(mask, values);
+    }
+
+    putEndLine() {}
+
+} # class StdoutOutput
+
+class XMLOutput inherits AbstractOutput
+{
+    constructor() : AbstractOutput("xml") {}
+
+    putLine(hash row, string type, hash describe)
+    {
+        if (type == "header")
+        {
+            printf("<xml version=\"1.0\" encoding=\"%s\">\n", get_default_encoding());
+            printf("<resultset>\n");
+        }
+        printf("%s\n", Xml::makeFormattedXMLFragment( ( "row" : row ), get_default_encoding()));
+    }
+
+    putEndLine()
+    {
+        printf("</resultset>");
+    }
+
+} # class XMLOutput
+
+
 class Main
 {
     private {
@@ -27,6 +132,11 @@ class Main
         int limit = 100;
         int verbose = 0;
         *hash describe;
+        string output = "console";
+
+        hash outputs = ( "console" : new StdoutOutput(),
+                         "xml" : new XMLOutput(),
+                       );
 
         hash commands = ( "history" : "callHistory",
                           "h" : "callHistory",
@@ -44,6 +154,7 @@ class Main
                           "describe" : "describeObject",
                           "limit" : "setLimit",
                           "verbose": "setVerbose",
+                          "output" : "setOutput",
                           "quit" : "quit",
                           "q" : "quit",
                         );
@@ -77,6 +188,7 @@ class Main
         #printf("Connected to: %n\n", ds.getClientVersion());
         setLimit();
         setVerbose();
+        setOutput();
 
         mainLoop();
     }
@@ -190,10 +302,11 @@ class Main
 
                 if (limit > 0 && count >= limit)
                 {
-                    printf("User row limit reached: %d\n", limit);
                     break;
                 }
             }
+
+            outputs{output}.putEndLine();
         }
         catch (ex)
         {
@@ -203,71 +316,19 @@ class Main
         end = now();
         
         printf("\n");
+        if (limit > 0 && count >= limit)
+        {
+            printf("User row limit reached: %d\n", limit);
+        }
         printf("rows affected: %d\n", count);
         printf("Duration: %n\n", end - start);
         printf("\n");
     }
 
 
-    private outputLine(hash row, string type)
-    {
-        string mask;
-        list values;
-        string title;
-        list key;
-        string separator;
-
-        HashIterator it(row);
-        while (it.next())
-        {
-            hash desc;
-            if (exists describe{it.getKey()})
-                desc = describe{it.getKey()};
-            else
-		desc.maxsize = 20;
-
-            int max = desc.maxsize < it.getKey().size() ? it.getKey().size() : desc.maxsize;
-            if (desc.type == NT_DATE && max < 19)
-                max = 19;
-            push key, it.getKey();
-            title += sprintf("%%-%ds ", max);
-            
-            switch (desc.type)
-            {
-                case NT_STRING:
-                    push values, it.getValue();
-                    mask += sprintf("%%-%ds ", max);
-                    separator += strmul("-", max) + " ";
-                    break;
-                case NT_DATE:
-                    push values, format_date("YYYY-MM-DD HH:mm:SS", it.getValue());
-                    mask += "%-s ";
-                    separator += strmul("-", 19) + " ";
-                    break;
-                default:
-                    push values, it.getValue();
-                    mask += sprintf("%%%ds ", max);
-                    separator += strmul("-", max) + " ";
-            }
-        } 
-        mask = mask.substr(0, mask.size()-1) + "\n";
-
-        if (type == "header")
-        {
-            title = title.substr(0, title.size()-1) + "\n";
-            vprintf(title, key);
-            printf(separator + "\n");
-        }
-
-        vprintf(mask, values);
-    }
-
     private outputHash(hash h, bool hasHeader)
     {
-        if (!hasHeader)
-            outputLine(h, "header");
-        else
-            outputLine(h, "datarow");
+        outputs{output}.putLine(h, hasHeader ? "datarow" : "header", describe);
     }
 
 
@@ -423,6 +484,24 @@ class Main
 
         verbose = val;
     }
+
+    private setOutput()
+    {
+        any val = shift argv;
+        if (!exists val)
+        {
+            printf("Current output method: %s\n", output);
+            return;
+        }
+        if (!inlist(val, keys outputs))
+        {
+            printf("Cannot set output mode to to value: %n. Use string value from %n\n", val, keys outputs);
+            return;
+        }
+
+        output = val;
+    }
+
 
     private quit()
     {
