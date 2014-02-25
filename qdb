@@ -144,6 +144,26 @@ class YamlOutput inherits AbstractOutput
     }
 } # class YamlOutput
 
+class JsonOutput inherits AbstractOutput
+{
+    constructor() : AbstractOutput("json") {}
+
+    putLine(hash row, string type, hash describe)
+    {
+        if (type == "header")
+        {
+            printf("[\n");
+            printf("    %s\n", Json::makeFormattedJSONString(row));
+        }
+        else
+            printf("   ,%s\n", Json::makeFormattedJSONString(row));
+    }
+
+    putEndLine()
+    {
+        printf("]\n");
+    }
+} # class JsonOutput
 
 class Main
 {
@@ -159,6 +179,7 @@ class Main
         hash outputs = ( "console" : new StdoutOutput(),
                          "xml" : new XMLOutput(),
                          "yaml" : new YamlOutput(),
+                         "json" : new JsonOutput(),
                        );
 
         hash commands = ( "history" : "callHistory",

@@ -76,7 +76,7 @@ Currently available formats:
 
 * console - a classic command line "tabular" output
 * xml - XML output. The root tag is ```resultset``` and each row is using tag ```row```
-* json - TODO
+* json - one JSON document per statement
 * yaml - one YAML document per statement
 
 
