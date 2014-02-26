@@ -14,6 +14,13 @@ An universal database client for command line. Currently supported DBMS:
 * SqlUtil module for Qore
 
 
+Optional dependencies, Qore modules:
+
+* xml
+* json
+* yaml
+
+
 ## Basic Usage
 
 ```

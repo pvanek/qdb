@@ -5,10 +5,18 @@
 
 %requires linenoise
 %requires SqlUtil
-# TODO/FIXME: check module presence
-%requires xml
-%requires yaml
-%requires json
+
+%try-module xml
+%define NO_XML
+%endtry
+
+%try-module yaml
+%define NO_YAML
+%endtry
+
+%try-module json
+%define NO_JSON
+%endtry
 
 
 
@@ -104,6 +112,7 @@ class StdoutOutput inherits AbstractOutput
 
 } # class StdoutOutput
 
+%ifndef NO_XML
 class XMLOutput inherits AbstractOutput
 {
     constructor() : AbstractOutput("xml") {}
@@ -124,7 +133,9 @@ class XMLOutput inherits AbstractOutput
     }
 
 } # class XMLOutput
+%endif
 
+%ifndef NO_YAML
 class YamlOutput inherits AbstractOutput
 {
     constructor() : AbstractOutput("yaml") {}
@@ -143,7 +154,9 @@ class YamlOutput inherits AbstractOutput
         printf("...\n");
     }
 } # class YamlOutput
+%endif
 
+%ifndef NO_JSON
 class JsonOutput inherits AbstractOutput
 {
     constructor() : AbstractOutput("json") {}
@@ -164,6 +177,8 @@ class JsonOutput inherits AbstractOutput
         printf("]\n");
     }
 } # class JsonOutput
+%endif
+
 
 class Main
 {
@@ -177,9 +192,15 @@ class Main
         string output = "console";
 
         hash outputs = ( "console" : new StdoutOutput(),
+%ifndef NO_XML
                          "xml" : new XMLOutput(),
+%endif
+%ifndef NO_YAML
                          "yaml" : new YamlOutput(),
+%endif
+%ifndef NO_JSON
                          "json" : new JsonOutput(),
+%endif
                        );
 
         hash commands = ( "history" : "callHistory",
@@ -534,7 +555,7 @@ class Main
         any val = shift argv;
         if (!exists val)
         {
-            printf("Current output method: %s\n", output);
+            printf("Current output method: %s. Available %n\n", output, keys outputs);
             return;
         }
         if (!inlist(val, keys outputs))
