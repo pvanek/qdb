@@ -6,6 +6,9 @@ An universal database client for command line. Currently supported DBMS:
 * Postgresql
 * MySQL (or clones/forks)
 
+Licensed under MIT license.
+support: https://github.com/pvanek/qdb
+
 
 ## Requirements
 
@@ -73,6 +76,7 @@ Note: Some commands make sense on special DBMS only.
 * packages [filter] : list all packages. Optional filter is case insensitive substring or regular expression.
 * types [filter] : list all named types. Optional filter is case insensitive substring or regular expression.
 * mviews [filter] : list all materialized views. Optional filter is case insensitive substring or regular expression.
+* help or ? : display help message
 
 
 ### Supported Output Formats

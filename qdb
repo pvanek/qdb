@@ -1,4 +1,27 @@
 #!/usr/bin/env qore
+#
+# The MIT License (MIT)
+#
+# Copyright (c) 2014 Petr Vanek <petr@yarpen.cz>
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
 
 %new-style
 %exec-class Main
@@ -18,15 +41,30 @@
 %define NO_JSON
 %endtry
 
+const VERSION = "0.2";
 
 
-sub help() {
+const options = (
+        "help" : "help,h",
+        "version" : "version,v",
+    );
+
+
+sub help(*int status)
+{
     printf("Usage:\n");
     printf("%s <connection>\n", get_script_name());
     printf("   connection can be any Qore connection string.\n");
     printf("   E.g.: pgsql:test/test@test%localhost\n");
     printf("\n");
-    exit(1);
+    if (exists status)
+        exit(status);
+}
+
+sub version(int status = 1)
+{
+    printf("%s\n", VERSION);
+    exit(status);
 }
 
 
@@ -222,6 +260,8 @@ class Main
                           "output" : "setOutput",
                           "quit" : "quit",
                           "q" : "quit",
+                          "help" : "callHelp",
+                          "?" : "callHelp",
                         );
 
         hash expansions = (
@@ -232,8 +272,15 @@ class Main
 
     constructor()
     {
+        GetOpt go(options);
+        hash opts = go.parse(\ARGV);
+        if (opts.help)
+            help(0);
+        if (opts.version)
+            version(0);
         if (!elements ARGV)
-            help();
+            help(1);
+
 
         connstr = string(ARGV[0]);
         ds = new Datasource(connstr);
@@ -414,6 +461,28 @@ class Main
             if (val && cnt-val > it.index())
                 continue;
             printf("%4d: %s\n", it.index(), it.getValue());
+        }
+    }
+
+    private callHelp()
+    {
+        list locations = ("./",
+                          "/usr/local/share/doc/packages/qdb",
+                          "/usr/share/doc/packages/qdb",
+                         );
+        File f();
+        ListIterator it(locations);
+        while (it.next())
+        {
+            if (!f.open(it.getValue() + "/README.md"))
+            {
+                 FileLineIterator fi(f.getFileName());
+                 while (fi.next())
+                 {
+                     printf("%s\n", fi.getValue());
+                 }
+                 return;
+            }
         }
     }
 
