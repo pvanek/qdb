@@ -467,7 +467,9 @@ class Main
     private callHelp()
     {
         list locations = ("./",
+                          "/usr/local/share/qdb",
                           "/usr/local/share/doc/packages/qdb",
+                          "/usr/share/qdb",
                           "/usr/share/doc/packages/qdb",
                          );
         File f();
