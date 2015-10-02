@@ -41,7 +41,11 @@
 %define NO_JSON
 %endtry
 
-const VERSION = "0.2";
+%try-module QorusClientCore
+%define NO_QORUS
+%endtry
+
+const VERSION = "0.3";
 
 
 const options = (
@@ -64,10 +68,10 @@ sub help(*int status)
         exit(status);
 }
 
-sub version(int status = 1)
+sub get_version()
 {
     printf("%s\n", VERSION);
-    exit(status);
+    exit(0);
 }
 
 
@@ -280,13 +284,24 @@ class Main
         if (opts.help)
             help(0);
         if (opts.version)
-            version(0);
+            get_version();
         if (!elements ARGV)
             help(1);
 
-
         connstr = string(ARGV[0]);
-        ds = new Datasource(connstr);
+%ifndef NO_QORUS
+	qorus_client_init2();
+        try {
+            ds = omqclient.getDatasource(connstr);
+        }
+        catch (ex) {
+#            printf("Qorus client found, but dbparams does not contain: %n\n", connstr);
+#            printf("    Continuing with regular connection\n");
+        }
+%endif
+
+        if (!exists ds)
+            ds = new Datasource(connstr);
         ds.setAutoCommit(False);
 
         db = new SqlUtil::Database(ds, ("native_case" : True) );
@@ -372,7 +387,7 @@ class Main
         string cmd = shift strs;
         if (has_key(commands, cmd))
         {
-            callObjectMethodArgs(self, commands{cmd}, strs);
+            call_object_method_args(self, commands{cmd}, strs);
             return True;
         }
       
@@ -515,7 +530,7 @@ class Main
 
     private showObjects(string objType, *string filter) {
         string method = sprintf("%sIterator", objType);
-        my ListIterator it = callObjectMethod(db, method);
+        my ListIterator it = call_object_method(db, method);
 
         printf("\n%ss\n", objType);
         printf("-----------------------------\n");
@@ -737,7 +752,7 @@ class Main
     
     private bool describeObject(string name, string type)
     {
-        ListIterator it(callObjectMethod(db, sprintf("list%ss", type)));
+        ListIterator it(call_object_method(db, sprintf("list%ss", type)));
         while (it.next())
         {
             if (it.getValue().upr() == name)
@@ -746,7 +761,7 @@ class Main
                     describeTable(name);
                 else
                 {
-                    ObjectIterator obj(callObjectMethod(db, sprintf("get%s", type), name));
+                    ObjectIterator obj(call_object_method(db, sprintf("get%s", type), name));
                     bool hasHeader = False;
                     string src;
                     while (obj.next())

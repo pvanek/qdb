@@ -23,6 +23,10 @@ Optional dependencies, Qore modules:
 * json
 * yaml
 
+Optional dependencies, Qorus Integration Server modules:
+
+* QorusClientCore
+
 
 ## Basic Usage
 
@@ -30,7 +34,7 @@ Optional dependencies, Qore modules:
 ./qdb oracle:scott/tiger@dbname
 ```
 
-The connection string is constructed as in [standard Qore connection](http://docs.qore.org/current/lang/html/group__dbi__functions.html#gad95f3a076d1818cc722c516543e29858)
+The connection string is constructed as in [standard Qore connection](http://docs.qore.org/current/lang/html/group__dbi__functions.html#gad95f3a076d1818cc722c516543e29858) or it can use Qorus Integration Server dbparams alias.
 
 Then the SQL prompt appears to enter raw SQL statements.
 
