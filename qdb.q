@@ -25,6 +25,8 @@
 
 %new-style
 %exec-class Main
+# qdb is used with new qore, but also with older versions (xml, yaml, ...)
+%disable-warning deprecated
 
 %requires linenoise
 %requires SqlUtil
