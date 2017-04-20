@@ -383,7 +383,7 @@ class Main
     }
 
 
-    private bool callCommand(string line)
+    bool callCommand(string line)
     {
         list strs = line.split(" ");
         string cmd = shift strs;
@@ -397,7 +397,7 @@ class Main
     }
 
 
-    private callSQL(string sql)
+    callSQL(string sql)
     {
         date start = now();
         date end;
@@ -458,13 +458,13 @@ class Main
     }
 
 
-    private outputHash(hash h, bool hasHeader)
+    outputHash(hash h, bool hasHeader)
     {
         outputs{output}.putLine(h, hasHeader ? "datarow" : "header", describe);
     }
 
 
-    private callHistory()
+    callHistory()
     {
         list h = Linenoise::history();
         ListIterator it(h);
@@ -484,13 +484,13 @@ class Main
         }
     }
 
-    private callHelp()
+    callHelp()
     {
         printf("commands list: %y\n", keys commands);
         printf("%s\n", HELPSTR);
     }
 
-    private string getPrompt()
+    string getPrompt()
     {
         string ret = sprintf("SQL tran:%s %s:%s@%s%%%s> ",
                               ds.inTransaction() ? 'Y' : 'n',
@@ -502,7 +502,7 @@ class Main
         return ret;
     }
 
-    private *string getConfigFile()
+    *string getConfigFile()
     {
         try
         {
@@ -514,7 +514,7 @@ class Main
         return NOTHING;
     }
 
-    private callCommit()
+    callCommit()
     {
         try
             ds.commit();
@@ -522,7 +522,7 @@ class Main
             printf("Commit ERROR: %s - %s\n", ex.err, ex.desc);
     }
 
-    private callRollback()
+    callRollback()
     {
         try
             ds.rollback();
@@ -530,7 +530,7 @@ class Main
             printf("Commit ERROR: %s - %s\n", ex.err, ex.desc);
     }
 
-    private showObjects(string objType, *string filter) {
+    showObjects(string objType, *string filter) {
         string method = sprintf("%sIterator", objType);
         my ListIterator it = call_object_method(db, method);
 
@@ -548,47 +548,47 @@ class Main
         printf("\n");
     }
 
-    private showTables()
+    showTables()
     {
         showObjects("table", shift argv);
     }
 
-    private showViews()
+    showViews()
     {
         showObjects("view", shift argv);
     }
 
-    private showSequences()
+    showSequences()
     {
         showObjects("sequence", shift argv);
     }
 
-    private showFunctions()
+    showFunctions()
     {
         showObjects("function", shift argv);
     }
 
-    private showProcedures()
+    showProcedures()
     {
         showObjects("procedure", shift argv);
     }
 
-    private showPackages()
+    showPackages()
     {
         showObjects("package", shift argv);
     }
 
-    private showTypes()
+    showTypes()
     {
         showObjects("type", shift argv);
     }
 
-    private showMViews()
+    showMViews()
     {
         showObjects("materializedView", shift argv);
     }
     
-    private setLimit()
+    setLimit()
     {
         any val = shift argv;
         if (!exists val)
@@ -606,7 +606,7 @@ class Main
     }
 
 
-    private setVerbose()
+    setVerbose()
     {
         any val = shift argv;
         if (!exists val)
@@ -623,7 +623,7 @@ class Main
         verbose = val;
     }
 
-    private setOutput()
+    setOutput()
     {
         any val = shift argv;
         if (!exists val)
@@ -641,14 +641,14 @@ class Main
     }
 
 
-    private quit()
+    quit()
     {
         ds.rollback();
         exit(0);
     }
     
 
-    private hash describeColumn(SqlUtil::AbstractColumn c)
+    hash describeColumn(SqlUtil::AbstractColumn c)
     {
         return (
              "name" : c.name,
@@ -660,7 +660,7 @@ class Main
              );
     }
 
-    private describeTable(string name)
+    describeTable(string name)
     {
         SqlUtil::AbstractTable tab = db.getTable(name);
         printf("Name: %s\n", tab.getName());
@@ -752,7 +752,7 @@ class Main
         }
     }
     
-    private bool describeObject(string name, string type)
+    bool describeObject(string name, string type)
     {
         ListIterator it(call_object_method(db, sprintf("list%ss", type)));
         while (it.next())
@@ -789,7 +789,7 @@ class Main
         return False;
     }
 
-    private describeObject()
+    describeObject()
     {
         *softstring name = shift argv;
         if (!exists name)
