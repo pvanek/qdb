@@ -602,7 +602,7 @@ class Main
             return;
         }
         
-        limit = val;
+        limit = int(val);
     }
 
 
@@ -620,7 +620,7 @@ class Main
             return;
         }
 
-        verbose = val;
+        verbose = int(val);
     }
 
     setOutput()
